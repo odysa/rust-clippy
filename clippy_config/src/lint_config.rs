@@ -17,27 +17,25 @@ impl MergedLintConfig {
         };
 
         // Load from Cargo.toml
-        if let Ok(file) = sess.source_map().load_file(Path::new("Cargo.toml")) {
-            if let Some(src) = file.src.as_deref() {
-                if let Ok(cargo_toml) = toml::from_str::<CargoToml>(src) {
-                    merged.merge_cargo_config(cargo_toml, sess);
-                }
-            }
+        if let Ok(file) = sess.source_map().load_file(Path::new("Cargo.toml"))
+            && let Some(src) = file.src.as_deref()
+            && let Ok(cargo_toml) = toml::from_str::<CargoToml>(src)
+        {
+            merged.merge_cargo_config(&cargo_toml, sess);
         }
 
         // Load from clippy.toml
-        if let Ok((Some(clippy_config_path), _)) = crate::lookup_conf_file() {
-            if let Ok(file) = sess.source_map().load_file(&clippy_config_path) {
-                if let Some(src) = file.src.as_deref() {
-                    // Try parsing as a full CargoToml structure (with [lints] sections)
-                    if let Ok(clippy_config) = toml::from_str::<CargoToml>(src) {
-                        merged.merge_lints(&clippy_config.lints, "clippy.toml", sess);
-                        merged.merge_lints(&clippy_config.workspace.lints, "clippy.toml [workspace]", sess);
-                    } else if let Ok(clippy_lints) = toml::from_str::<Lints>(src) {
-                        // Fallback: try parsing as just the lints section
-                        merged.merge_lints(&clippy_lints, "clippy.toml", sess);
-                    }
-                }
+        if let Ok((Some(clippy_config_path), _)) = crate::lookup_conf_file()
+            && let Ok(file) = sess.source_map().load_file(&clippy_config_path)
+            && let Some(src) = file.src.as_deref()
+        {
+            // Try parsing as a full CargoToml structure (with [lints] sections)
+            if let Ok(clippy_config) = toml::from_str::<CargoToml>(src) {
+                merged.merge_lints(&clippy_config.lints, "clippy.toml", sess);
+                merged.merge_lints(&clippy_config.workspace.lints, "clippy.toml [workspace]", sess);
+            } else if let Ok(clippy_lints) = toml::from_str::<Lints>(src) {
+                // Fallback: try parsing as just the lints section
+                merged.merge_lints(&clippy_lints, "clippy.toml", sess);
             }
         }
 
@@ -51,33 +49,33 @@ impl MergedLintConfig {
         };
 
         // Load from Cargo.toml
-        if let Ok(src) = std::fs::read_to_string("Cargo.toml") {
-            if let Ok(cargo_toml) = toml::from_str::<CargoToml>(&src) {
-                merged.merge_cargo_config_static(cargo_toml);
-            }
+        if let Ok(src) = std::fs::read_to_string("Cargo.toml")
+            && let Ok(cargo_toml) = toml::from_str::<CargoToml>(&src)
+        {
+            merged.merge_cargo_config_static(&cargo_toml);
         }
 
         // Load from clippy.toml
-        if let Ok((Some(clippy_config_path), _)) = crate::lookup_conf_file() {
-            if let Ok(src) = std::fs::read_to_string(&clippy_config_path) {
-                // Try parsing as a full CargoToml structure (with [lints] sections)
-                if let Ok(clippy_config) = toml::from_str::<CargoToml>(&src) {
-                    merged.merge_lints_static(&clippy_config.lints, "clippy.toml");
-                    merged.merge_lints_static(&clippy_config.workspace.lints, "clippy.toml [workspace]");
-                } else if let Ok(clippy_lints) = toml::from_str::<Lints>(&src) {
-                    // Fallback: try parsing as just the lints section
-                    merged.merge_lints_static(&clippy_lints, "clippy.toml");
-                }
+        if let Ok((Some(clippy_config_path), _)) = crate::lookup_conf_file()
+            && let Ok(src) = std::fs::read_to_string(&clippy_config_path)
+        {
+            // Try parsing as a full CargoToml structure (with [lints] sections)
+            if let Ok(clippy_config) = toml::from_str::<CargoToml>(&src) {
+                merged.merge_lints_static(&clippy_config.lints, "clippy.toml");
+                merged.merge_lints_static(&clippy_config.workspace.lints, "clippy.toml [workspace]");
+            } else if let Ok(clippy_lints) = toml::from_str::<Lints>(&src) {
+                // Fallback: try parsing as just the lints section
+                merged.merge_lints_static(&clippy_lints, "clippy.toml");
             }
         }
-
         merged
     }
 
-    /// Create a MergedLintConfig from TOML strings (for testing)
-    /// 
-    /// cargo_toml should be a full Cargo.toml with [lints.clippy] and [lints.rust] sections
-    /// clippy_toml should be in the format expected by clippy.toml with [lints.clippy] and [lints.rust] sections
+    /// Create a `MergedLintConfig` from TOML strings (for testing)
+    ///
+    /// `cargo_toml` should be a full Cargo.toml with [lints.clippy] and [lints.rust] sections
+    /// `clippy_toml` should be in the format expected by clippy.toml with [lints.clippy] and
+    /// [lints.rust] sections
     pub fn from_toml_strings(cargo_toml: Option<&str>, clippy_toml: Option<&str>) -> Self {
         let mut merged = MergedLintConfig {
             rust_lints: BTreeMap::new(),
@@ -85,10 +83,10 @@ impl MergedLintConfig {
         };
 
         // Parse Cargo.toml if provided
-        if let Some(cargo_src) = cargo_toml {
-            if let Ok(cargo_config) = toml::from_str::<CargoToml>(cargo_src) {
-                merged.merge_cargo_config_static(cargo_config);
-            }
+        if let Some(cargo_src) = cargo_toml
+            && let Ok(cargo_config) = toml::from_str::<CargoToml>(cargo_src)
+        {
+            merged.merge_cargo_config_static(&cargo_config);
         }
 
         // Parse clippy.toml if provided - it has the same structure as Cargo.toml [lints] sections
@@ -106,16 +104,15 @@ impl MergedLintConfig {
         merged
     }
 
-    fn merge_cargo_config(&mut self, cargo_toml: CargoToml, sess: &Session) {
+    fn merge_cargo_config(&mut self, cargo_toml: &CargoToml, sess: &Session) {
         self.merge_lints(&cargo_toml.lints, "Cargo.toml", sess);
         self.merge_lints(&cargo_toml.workspace.lints, "Cargo.toml [workspace]", sess);
     }
 
-    fn merge_cargo_config_static(&mut self, cargo_toml: CargoToml) {
+    fn merge_cargo_config_static(&mut self, cargo_toml: &CargoToml) {
         self.merge_lints_static(&cargo_toml.lints, "Cargo.toml");
         self.merge_lints_static(&cargo_toml.workspace.lints, "Cargo.toml [workspace]");
     }
-
 
     fn merge_lints(&mut self, lints: &Lints, source: &str, sess: &Session) {
         // Merge rust lints
@@ -123,46 +120,66 @@ impl MergedLintConfig {
             let name_str = name.get_ref().clone();
             let level = config.get_ref().level().to_string();
             let priority = config.get_ref().priority();
-            
+
             if let Some((existing_level, existing_priority, existing_source)) = self.rust_lints.get(&name_str) {
-                if existing_level != &level || existing_priority != &priority {
+                // Only warn for conflicts between different file types (Cargo.toml vs clippy.toml)
+                let existing_is_cargo = existing_source.as_deref().unwrap_or("").contains("Cargo.toml");
+                let current_is_cargo = source.contains("Cargo.toml");
+                if existing_is_cargo != current_is_cargo && (existing_level != &level || existing_priority != &priority)
+                {
                     sess.dcx().warn(format!(
                         "Conflicting configuration for rust lint '{}': {}@{} in {} vs {}@{} in {}",
-                        name_str, existing_level, existing_priority, 
-                        existing_source.as_deref().unwrap_or("unknown"), 
-                        level, priority, source
+                        name_str,
+                        existing_level,
+                        existing_priority,
+                        existing_source.as_deref().unwrap_or("unknown"),
+                        level,
+                        priority,
+                        source
                     ));
                 }
                 // clippy.toml takes precedence over Cargo.toml
                 if source == "clippy.toml" {
-                    self.rust_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                    self.rust_lints
+                        .insert(name_str, (level, priority, Some(source.to_string())));
                 }
             } else {
-                self.rust_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                self.rust_lints
+                    .insert(name_str, (level, priority, Some(source.to_string())));
             }
         }
-        
+
         // Merge clippy lints
         for (name, config) in &lints.clippy {
             let name_str = name.get_ref().clone();
             let level = config.get_ref().level().to_string();
             let priority = config.get_ref().priority();
-            
+
             if let Some((existing_level, existing_priority, existing_source)) = self.clippy_lints.get(&name_str) {
-                if existing_level != &level || existing_priority != &priority {
+                // Only warn for conflicts between different file types (Cargo.toml vs clippy.toml)
+                let existing_is_cargo = existing_source.as_deref().unwrap_or("").contains("Cargo.toml");
+                let current_is_cargo = source.contains("Cargo.toml");
+                if existing_is_cargo != current_is_cargo && (existing_level != &level || existing_priority != &priority)
+                {
                     sess.dcx().warn(format!(
                         "Conflicting configuration for clippy lint '{}': {}@{} in {} vs {}@{} in {}",
-                        name_str, existing_level, existing_priority,
+                        name_str,
+                        existing_level,
+                        existing_priority,
                         existing_source.as_deref().unwrap_or("unknown"),
-                        level, priority, source
+                        level,
+                        priority,
+                        source
                     ));
                 }
                 // clippy.toml takes precedence over Cargo.toml
                 if source == "clippy.toml" {
-                    self.clippy_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                    self.clippy_lints
+                        .insert(name_str, (level, priority, Some(source.to_string())));
                 }
             } else {
-                self.clippy_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                self.clippy_lints
+                    .insert(name_str, (level, priority, Some(source.to_string())));
             }
         }
     }
@@ -173,51 +190,70 @@ impl MergedLintConfig {
             let name_str = name.get_ref().clone();
             let level = config.get_ref().level().to_string();
             let priority = config.get_ref().priority();
-            
+
             if let Some((existing_level, existing_priority, existing_source)) = self.rust_lints.get(&name_str) {
-                if existing_level != &level || existing_priority != &priority {
+                // Only warn for conflicts between different file types (Cargo.toml vs clippy.toml)
+                let existing_is_cargo = existing_source.as_deref().unwrap_or("").contains("Cargo.toml");
+                let current_is_cargo = source.contains("Cargo.toml");
+                if existing_is_cargo != current_is_cargo && (existing_level != &level || existing_priority != &priority)
+                {
                     eprintln!(
                         "Warning: Conflicting configuration for rust lint '{}': {}@{} in {} vs {}@{} in {}",
-                        name_str, existing_level, existing_priority,
+                        name_str,
+                        existing_level,
+                        existing_priority,
                         existing_source.as_deref().unwrap_or("unknown"),
-                        level, priority, source
+                        level,
+                        priority,
+                        source
                     );
                 }
                 // clippy.toml takes precedence over Cargo.toml
                 if source == "clippy.toml" {
-                    self.rust_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                    self.rust_lints
+                        .insert(name_str, (level, priority, Some(source.to_string())));
                 }
             } else {
-                self.rust_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                self.rust_lints
+                    .insert(name_str, (level, priority, Some(source.to_string())));
             }
         }
-        
+
         // Merge clippy lints
         for (name, config) in &lints.clippy {
             let name_str = name.get_ref().clone();
             let level = config.get_ref().level().to_string();
             let priority = config.get_ref().priority();
-            
+
             if let Some((existing_level, existing_priority, existing_source)) = self.clippy_lints.get(&name_str) {
-                if existing_level != &level || existing_priority != &priority {
+                // Only warn for conflicts between different file types (Cargo.toml vs clippy.toml)
+                let existing_is_cargo = existing_source.as_deref().unwrap_or("").contains("Cargo.toml");
+                let current_is_cargo = source.contains("Cargo.toml");
+                if existing_is_cargo != current_is_cargo && (existing_level != &level || existing_priority != &priority)
+                {
                     eprintln!(
                         "Warning: Conflicting configuration for clippy lint '{}': {}@{} in {} vs {}@{} in {}",
-                        name_str, existing_level, existing_priority,
+                        name_str,
+                        existing_level,
+                        existing_priority,
                         existing_source.as_deref().unwrap_or("unknown"),
-                        level, priority, source
+                        level,
+                        priority,
+                        source
                     );
                 }
                 // clippy.toml takes precedence over Cargo.toml
                 if source == "clippy.toml" {
-                    self.clippy_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                    self.clippy_lints
+                        .insert(name_str, (level, priority, Some(source.to_string())));
                 }
             } else {
-                self.clippy_lints.insert(name_str, (level, priority, Some(source.to_string())));
+                self.clippy_lints
+                    .insert(name_str, (level, priority, Some(source.to_string())));
             }
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,13 +274,25 @@ unused_variables = { level = "warn", priority = 10 }
 
         // Check clippy lints
         assert_eq!(config.clippy_lints.len(), 2);
-        assert_eq!(config.clippy_lints["needless_return"], ("allow".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.clippy_lints["single_match"], ("warn".to_string(), 5, Some("Cargo.toml".to_string())));
+        assert_eq!(
+            config.clippy_lints["needless_return"],
+            ("allow".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["single_match"],
+            ("warn".to_string(), 5, Some("Cargo.toml".to_string()))
+        );
 
         // Check rust lints
         assert_eq!(config.rust_lints.len(), 2);
-        assert_eq!(config.rust_lints["dead_code"], ("allow".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_variables"], ("warn".to_string(), 10, Some("Cargo.toml".to_string())));
+        assert_eq!(
+            config.rust_lints["dead_code"],
+            ("allow".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_variables"],
+            ("warn".to_string(), 10, Some("Cargo.toml".to_string()))
+        );
     }
 
     #[test]
@@ -263,13 +311,25 @@ unused_imports = "allow"
 
         // Check clippy lints
         assert_eq!(config.clippy_lints.len(), 2);
-        assert_eq!(config.clippy_lints["needless_return"], ("deny".to_string(), 0, Some("clippy.toml".to_string())));
-        assert_eq!(config.clippy_lints["too_many_arguments"], ("forbid".to_string(), 15, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.clippy_lints["needless_return"],
+            ("deny".to_string(), 0, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["too_many_arguments"],
+            ("forbid".to_string(), 15, Some("clippy.toml".to_string()))
+        );
 
         // Check rust lints
         assert_eq!(config.rust_lints.len(), 2);
-        assert_eq!(config.rust_lints["dead_code"], ("warn".to_string(), 3, Some("clippy.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_imports"], ("allow".to_string(), 0, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.rust_lints["dead_code"],
+            ("warn".to_string(), 3, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_imports"],
+            ("allow".to_string(), 0, Some("clippy.toml".to_string()))
+        );
     }
 
     #[test]
@@ -298,17 +358,41 @@ unreachable_code = { level = "warn", priority = 8 }
 
         // Check clippy lints (should have lints from both files)
         assert_eq!(config.clippy_lints.len(), 4);
-        assert_eq!(config.clippy_lints["needless_return"], ("allow".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.clippy_lints["single_match"], ("warn".to_string(), 5, Some("Cargo.toml".to_string())));
-        assert_eq!(config.clippy_lints["too_many_arguments"], ("forbid".to_string(), 15, Some("clippy.toml".to_string())));
-        assert_eq!(config.clippy_lints["wildcard_imports"], ("deny".to_string(), 0, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.clippy_lints["needless_return"],
+            ("allow".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["single_match"],
+            ("warn".to_string(), 5, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["too_many_arguments"],
+            ("forbid".to_string(), 15, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["wildcard_imports"],
+            ("deny".to_string(), 0, Some("clippy.toml".to_string()))
+        );
 
         // Check rust lints (should have lints from both files)
         assert_eq!(config.rust_lints.len(), 4);
-        assert_eq!(config.rust_lints["dead_code"], ("allow".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_variables"], ("warn".to_string(), 10, Some("Cargo.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_imports"], ("allow".to_string(), 0, Some("clippy.toml".to_string())));
-        assert_eq!(config.rust_lints["unreachable_code"], ("warn".to_string(), 8, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.rust_lints["dead_code"],
+            ("allow".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_variables"],
+            ("warn".to_string(), 10, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_imports"],
+            ("allow".to_string(), 0, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unreachable_code"],
+            ("warn".to_string(), 8, Some("clippy.toml".to_string()))
+        );
     }
 
     #[test]
@@ -337,12 +421,24 @@ unused_variables = "forbid"
 
         // Check that clippy.toml values take precedence
         assert_eq!(config.clippy_lints.len(), 2);
-        assert_eq!(config.clippy_lints["needless_return"], ("deny".to_string(), 0, Some("clippy.toml".to_string())));
-        assert_eq!(config.clippy_lints["single_match"], ("forbid".to_string(), 15, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.clippy_lints["needless_return"],
+            ("deny".to_string(), 0, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["single_match"],
+            ("forbid".to_string(), 15, Some("clippy.toml".to_string()))
+        );
 
         assert_eq!(config.rust_lints.len(), 2);
-        assert_eq!(config.rust_lints["dead_code"], ("warn".to_string(), 3, Some("clippy.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_variables"], ("forbid".to_string(), 0, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.rust_lints["dead_code"],
+            ("warn".to_string(), 3, Some("clippy.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_variables"],
+            ("forbid".to_string(), 0, Some("clippy.toml".to_string()))
+        );
     }
 
     #[test]
@@ -365,12 +461,24 @@ unused_variables = "forbid"
 
         // Check that both regular and workspace lints are included
         assert_eq!(config.clippy_lints.len(), 2);
-        assert_eq!(config.clippy_lints["needless_return"], ("allow".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.clippy_lints["single_match"], ("deny".to_string(), 20, Some("Cargo.toml [workspace]".to_string())));
+        assert_eq!(
+            config.clippy_lints["needless_return"],
+            ("allow".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.clippy_lints["single_match"],
+            ("deny".to_string(), 20, Some("Cargo.toml [workspace]".to_string()))
+        );
 
         assert_eq!(config.rust_lints.len(), 2);
-        assert_eq!(config.rust_lints["dead_code"], ("warn".to_string(), 0, Some("Cargo.toml".to_string())));
-        assert_eq!(config.rust_lints["unused_variables"], ("forbid".to_string(), 0, Some("Cargo.toml [workspace]".to_string())));
+        assert_eq!(
+            config.rust_lints["dead_code"],
+            ("warn".to_string(), 0, Some("Cargo.toml".to_string()))
+        );
+        assert_eq!(
+            config.rust_lints["unused_variables"],
+            ("forbid".to_string(), 0, Some("Cargo.toml [workspace]".to_string()))
+        );
     }
 
     #[test]
@@ -422,10 +530,13 @@ single_match = "warn"
 "#;
 
         let config = MergedLintConfig::from_toml_strings(Some(malformed_cargo), Some(valid_clippy));
-        
+
         // Should only have the valid clippy.toml content
         assert_eq!(config.clippy_lints.len(), 1);
-        assert_eq!(config.clippy_lints["single_match"], ("warn".to_string(), 0, Some("clippy.toml".to_string())));
+        assert_eq!(
+            config.clippy_lints["single_match"],
+            ("warn".to_string(), 0, Some("clippy.toml".to_string()))
+        );
         assert_eq!(config.rust_lints.len(), 0);
     }
 }

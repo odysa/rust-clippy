@@ -48,136 +48,57 @@ fn arg_value<'a>(args: &'a [String], find_arg: &str, pred: impl Fn(&str) -> bool
 
 fn inject_lint_args_from_config(clippy_args: &mut Vec<String>) {
     // Load merged configuration from both Cargo.toml and clippy.toml
-    if let Ok(merged_config) = load_merged_lint_config() {
-        // Collect all lints with their priorities for sorting
-        let mut all_lints: Vec<(String, String, i64)> = Vec::new();
-        
-        // Collect rust lints
-        for (lint_name, (level_str, priority, _source)) in &merged_config.rust_lints {
-            all_lints.push((format!("--{}={}", level_to_flag(level_str), lint_name), level_str.clone(), *priority));
-        }
-        
-        // Collect clippy lints
-        for (lint_name, (level_str, priority, _source)) in &merged_config.clippy_lints {
-            all_lints.push((format!("--{}=clippy::{}", level_to_flag(level_str), lint_name), level_str.clone(), *priority));
-        }
-        
-        // Sort by priority (higher priority first, then by lint name for stability)
-        all_lints.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
-        
-        // Add sorted arguments to clippy_args
-        for (arg, _level, _priority) in all_lints {
-            clippy_args.push(arg);
-        }
+    let merged_config = load_merged_lint_config();
+    // Collect all lints with their priorities for sorting
+    let mut all_lints: Vec<(String, String, i64)> = Vec::new();
+
+    // Collect rust lints
+    for (lint_name, (level_str, priority, _source)) in &merged_config.rust_lints {
+        all_lints.push((
+            format!("--{}={}", level_to_flag(level_str), lint_name),
+            level_str.to_string(),
+            *priority,
+        ));
+    }
+
+    // Collect clippy lints
+    for (lint_name, (level_str, priority, _source)) in &merged_config.clippy_lints {
+        all_lints.push((
+            format!("--{}=clippy::{}", level_to_flag(level_str), lint_name),
+            level_str.to_string(),
+            *priority,
+        ));
+    }
+
+    // Sort by priority (higher priority first, then by lint name for stability)
+    all_lints.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+
+    // Add sorted arguments to clippy_args
+    for (arg, _level, _priority) in all_lints {
+        clippy_args.push(arg);
     }
 }
 
-fn load_merged_lint_config() -> Result<clippy_config::MergedLintConfig, Box<dyn std::error::Error>> {
-    // Load the merged configuration
-    let merged_config = clippy_config::MergedLintConfig::load_static();
-    Ok(merged_config)
+fn load_merged_lint_config() -> clippy_config::MergedLintConfig {
+    clippy_config::MergedLintConfig::load_static()
 }
 
 fn level_to_flag(level: &str) -> &'static str {
-    match level.to_lowercase().as_str() {
-        "allow" => "allow",
-        "warn" => "warn", 
-        "deny" => "deny",
-        "forbid" => "forbid",
-        _ => "warn", // default to warn for unknown levels
+    if level.eq_ignore_ascii_case("allow") {
+        "allow"
+    } else if level.eq_ignore_ascii_case("warn") {
+        "warn"
+    } else if level.eq_ignore_ascii_case("deny") {
+        "deny"
+    } else if level.eq_ignore_ascii_case("forbid") {
+        "forbid"
+    } else {
+        "warn" // default to warn for unknown levels
     }
 }
 
 fn has_arg(args: &[String], find_arg: &str) -> bool {
     args.iter().any(|arg| find_arg == arg.split('=').next().unwrap())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_level_to_flag() {
-        assert_eq!(level_to_flag("allow"), "allow");
-        assert_eq!(level_to_flag("ALLOW"), "allow");
-        assert_eq!(level_to_flag("warn"), "warn");
-        assert_eq!(level_to_flag("WARN"), "warn");
-        assert_eq!(level_to_flag("deny"), "deny");
-        assert_eq!(level_to_flag("forbid"), "forbid");
-        assert_eq!(level_to_flag("unknown"), "warn"); // Default
-    }
-
-    #[test]
-    fn test_inject_lint_args_priority_sorting() {
-        // Create a mock merged config for testing
-        let mut rust_lints = std::collections::BTreeMap::new();
-        rust_lints.insert("dead_code".to_string(), ("allow".to_string(), 5, Some("clippy.toml".to_string())));
-        rust_lints.insert("unused_variables".to_string(), ("warn".to_string(), 10, Some("Cargo.toml".to_string())));
-        rust_lints.insert("unused_imports".to_string(), ("deny".to_string(), 1, Some("clippy.toml".to_string())));
-
-        let mut clippy_lints = std::collections::BTreeMap::new();
-        clippy_lints.insert("needless_return".to_string(), ("allow".to_string(), 15, Some("clippy.toml".to_string())));
-        clippy_lints.insert("single_match".to_string(), ("warn".to_string(), 5, Some("Cargo.toml".to_string())));
-        clippy_lints.insert("too_many_arguments".to_string(), ("forbid".to_string(), 0, Some("clippy.toml".to_string())));
-
-        // Simulate the sorting behavior
-        let mut all_lints: Vec<(String, String, i64)> = Vec::new();
-        
-        for (lint_name, (level_str, priority, _source)) in &rust_lints {
-            all_lints.push((format!("--{}={}", level_to_flag(level_str), lint_name), level_str.clone(), *priority));
-        }
-        
-        for (lint_name, (level_str, priority, _source)) in &clippy_lints {
-            all_lints.push((format!("--{}=clippy::{}", level_to_flag(level_str), lint_name), level_str.clone(), *priority));
-        }
-        
-        // Sort by priority (higher priority first, then by lint name for stability)
-        all_lints.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
-        
-        // Extract just the arguments
-        let args: Vec<String> = all_lints.into_iter().map(|(arg, _, _)| arg).collect();
-        
-        // Verify the expected order (highest priority first, then alphabetical within same priority)
-        let expected = vec![
-            "--allow=clippy::needless_return",  // priority 15
-            "--warn=unused_variables",          // priority 10
-            "--allow=dead_code",                // priority 5 (first alphabetically among priority 5)
-            "--warn=clippy::single_match",      // priority 5 (second alphabetically among priority 5)
-            "--deny=unused_imports",            // priority 1
-            "--forbid=clippy::too_many_arguments", // priority 0
-        ];
-        
-        assert_eq!(args, expected);
-    }
-
-    #[test]
-    fn test_arg_value() {
-        let args = vec![
-            "--cap-lints=allow".to_string(),
-            "--force-warn".to_string(),
-            "clippy::needless_return".to_string(),
-            "--other-flag=value".to_string(),
-        ];
-
-        assert_eq!(arg_value(&args, "--cap-lints", |val| val == "allow"), Some("allow"));
-        assert_eq!(arg_value(&args, "--cap-lints", |val| val == "warn"), None);
-        assert_eq!(arg_value(&args, "--force-warn", |val| val.contains("clippy::")), Some("clippy::needless_return"));
-        assert_eq!(arg_value(&args, "--nonexistent", |_| true), None);
-    }
-
-    #[test]
-    fn test_has_arg() {
-        let args = vec![
-            "--cap-lints=allow".to_string(),
-            "--version".to_string(),
-            "--help".to_string(),
-        ];
-
-        assert!(has_arg(&args, "--cap-lints"));
-        assert!(has_arg(&args, "--version"));
-        assert!(has_arg(&args, "--help"));
-        assert!(!has_arg(&args, "--nonexistent"));
-    }
 }
 
 fn track_clippy_args(psess: &mut ParseSess, args_env_var: Option<&str>) {
@@ -435,4 +356,121 @@ You can use tool lints to allow or deny lints from your code, e.g.:
     <yellow,bold>#[allow(clippy::needless_lifetimes)]</>
 "
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_level_to_flag() {
+        assert_eq!(level_to_flag("allow"), "allow");
+        assert_eq!(level_to_flag("ALLOW"), "allow");
+        assert_eq!(level_to_flag("warn"), "warn");
+        assert_eq!(level_to_flag("WARN"), "warn");
+        assert_eq!(level_to_flag("deny"), "deny");
+        assert_eq!(level_to_flag("forbid"), "forbid");
+        assert_eq!(level_to_flag("unknown"), "warn"); // Default
+    }
+
+    #[test]
+    fn test_inject_lint_args_priority_sorting() {
+        // Create a mock merged config for testing
+        let mut rust_lints = std::collections::BTreeMap::new();
+        rust_lints.insert(
+            "dead_code".to_string(),
+            ("allow".to_string(), 5, Some("clippy.toml".to_string())),
+        );
+        rust_lints.insert(
+            "unused_variables".to_string(),
+            ("warn".to_string(), 10, Some("Cargo.toml".to_string())),
+        );
+        rust_lints.insert(
+            "unused_imports".to_string(),
+            ("deny".to_string(), 1, Some("clippy.toml".to_string())),
+        );
+
+        let mut clippy_lints = std::collections::BTreeMap::new();
+        clippy_lints.insert(
+            "needless_return".to_string(),
+            ("allow".to_string(), 15, Some("clippy.toml".to_string())),
+        );
+        clippy_lints.insert(
+            "single_match".to_string(),
+            ("warn".to_string(), 5, Some("Cargo.toml".to_string())),
+        );
+        clippy_lints.insert(
+            "too_many_arguments".to_string(),
+            ("forbid".to_string(), 0, Some("clippy.toml".to_string())),
+        );
+
+        // Simulate the sorting behavior
+        let mut all_lints: Vec<(String, String, i64)> = Vec::new();
+
+        for (lint_name, (level_str, priority, _source)) in &rust_lints {
+            all_lints.push((
+                format!("--{}={}", level_to_flag(level_str), lint_name),
+                level_str.clone(),
+                *priority,
+            ));
+        }
+
+        for (lint_name, (level_str, priority, _source)) in &clippy_lints {
+            all_lints.push((
+                format!("--{}=clippy::{}", level_to_flag(level_str), lint_name),
+                level_str.clone(),
+                *priority,
+            ));
+        }
+
+        // Sort by priority (higher priority first, then by lint name for stability)
+        all_lints.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+
+        // Extract just the arguments
+        let args: Vec<String> = all_lints.into_iter().map(|(arg, _, _)| arg).collect();
+
+        // Verify the expected order (highest priority first, then alphabetical within same priority)
+        let expected = vec![
+            "--allow=clippy::needless_return",     // priority 15
+            "--warn=unused_variables",             // priority 10
+            "--allow=dead_code",                   // priority 5 (first alphabetically among priority 5)
+            "--warn=clippy::single_match",         // priority 5 (second alphabetically among priority 5)
+            "--deny=unused_imports",               // priority 1
+            "--forbid=clippy::too_many_arguments", // priority 0
+        ];
+
+        assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn test_arg_value() {
+        let args = vec![
+            "--cap-lints=allow".to_string(),
+            "--force-warn".to_string(),
+            "clippy::needless_return".to_string(),
+            "--other-flag=value".to_string(),
+        ];
+
+        assert_eq!(arg_value(&args, "--cap-lints", |val| val == "allow"), Some("allow"));
+        assert_eq!(arg_value(&args, "--cap-lints", |val| val == "warn"), None);
+        assert_eq!(
+            arg_value(&args, "--force-warn", |val| val.contains("clippy::")),
+            Some("clippy::needless_return")
+        );
+        assert_eq!(arg_value(&args, "--nonexistent", |_| true), None);
+    }
+
+    #[test]
+    fn test_has_arg() {
+        let args = vec![
+            "--cap-lints=allow".to_string(),
+            "--version".to_string(),
+            "--help".to_string(),
+        ];
+
+        assert!(has_arg(&args, "--cap-lints"));
+        assert!(has_arg(&args, "--version"));
+        assert!(has_arg(&args, "--help"));
+        assert!(!has_arg(&args, "--nonexistent"));
+    }
 }

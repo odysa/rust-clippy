@@ -112,35 +112,34 @@ pub fn check(cx: &LateContext<'_>) {
     }
 
     // Also check clippy.toml for lint configurations
-    if let Ok((Some(clippy_config_path), _)) = clippy_config::lookup_conf_file() {
-        if let Ok(clippy_file) = cx.tcx.sess.source_map().load_file(&clippy_config_path)
-            && let Some(clippy_src) = clippy_file.src.as_deref()
-        {
-            let mut rustc_groups = FxHashSet::default();
-            let mut clippy_groups = FxHashSet::default();
-            for (group, ..) in unerased_lint_store(cx.tcx.sess).get_lint_groups() {
-                match group.split_once("::") {
-                    None => {
-                        rustc_groups.insert(group);
-                    },
-                    Some(("clippy", group)) => {
-                        clippy_groups.insert(group);
-                    },
-                    _ => {},
-                }
+    if let Ok((Some(clippy_config_path), _)) = clippy_config::lookup_conf_file()
+        && let Ok(clippy_file) = cx.tcx.sess.source_map().load_file(&clippy_config_path)
+        && let Some(clippy_src) = clippy_file.src.as_deref()
+    {
+        let mut rustc_groups = FxHashSet::default();
+        let mut clippy_groups = FxHashSet::default();
+        for (group, ..) in unerased_lint_store(cx.tcx.sess).get_lint_groups() {
+            match group.split_once("::") {
+                None => {
+                    rustc_groups.insert(group);
+                },
+                Some(("clippy", group)) => {
+                    clippy_groups.insert(group);
+                },
+                _ => {},
             }
+        }
 
-            // Try parsing as a full CargoToml structure (with [lints] sections)
-            if let Ok(clippy_config) = toml::from_str::<CargoToml>(clippy_src) {
-                check_table(cx, clippy_config.lints.rust, &rustc_groups, &clippy_file);
-                check_table(cx, clippy_config.lints.clippy, &clippy_groups, &clippy_file);
-                check_table(cx, clippy_config.workspace.lints.rust, &rustc_groups, &clippy_file);
-                check_table(cx, clippy_config.workspace.lints.clippy, &clippy_groups, &clippy_file);
-            } else if let Ok(clippy_lints) = toml::from_str::<Lints>(clippy_src) {
-                // Fallback: try parsing as just the lints section
-                check_table(cx, clippy_lints.rust, &rustc_groups, &clippy_file);
-                check_table(cx, clippy_lints.clippy, &clippy_groups, &clippy_file);
-            }
+        // Try parsing as a full CargoToml structure (with [lints] sections)
+        if let Ok(clippy_config) = toml::from_str::<CargoToml>(clippy_src) {
+            check_table(cx, clippy_config.lints.rust, &rustc_groups, &clippy_file);
+            check_table(cx, clippy_config.lints.clippy, &clippy_groups, &clippy_file);
+            check_table(cx, clippy_config.workspace.lints.rust, &rustc_groups, &clippy_file);
+            check_table(cx, clippy_config.workspace.lints.clippy, &clippy_groups, &clippy_file);
+        } else if let Ok(clippy_lints) = toml::from_str::<Lints>(clippy_src) {
+            // Fallback: try parsing as just the lints section
+            check_table(cx, clippy_lints.rust, &rustc_groups, &clippy_file);
+            check_table(cx, clippy_lints.clippy, &clippy_groups, &clippy_file);
         }
     }
 }
